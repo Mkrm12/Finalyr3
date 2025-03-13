@@ -1,0 +1,26 @@
+{
+  "name": "saved-games",
+  "version": "1.0.0",
+  "main": "database.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "description": "",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "body-parser": "^1.20.3",
+    "express": "^4.21.2",
+    "jsdom": "^26.0.0",
+    "mysql": "^2.18.1",
+    "natural": "^8.0.1",
+    "node-fetch": "^3.3.2",
+    "python-shell": "^5.0.0",
+    "transformers": "^3.1.0",
+    "vader-sentiment": "^1.1.3"
+  }
+}
