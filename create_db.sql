@@ -18,4 +18,3 @@ CREATE TABLE IF NOT EXISTS Messages (
   timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (chat_id) REFERENCES Chats(id)
 );
-scp create_db.sql mnazi002@doc.gold.ac.uk:~/create_db.sql
