@@ -20,6 +20,11 @@ const db = mysql.createConnection({
 
 const app = express();
 const PORT = 8080;
+const HOST = '0.0.0.0'; // Bind to all network interfaces
+app.listen(PORT, HOST, () => {
+  console.log(`Server is running on http://${HOST}:${PORT}`);
+});
+
 const GNEWS_API_KEY = "bb021a4b1e61649a484c577063faebf1";
 const BASE_URL = "https://gnews.io/api/v4/search";
 
@@ -268,7 +273,3 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
