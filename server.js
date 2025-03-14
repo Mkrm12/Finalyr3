@@ -19,7 +19,7 @@ const db = mysql.createConnection({
 });
 
 const app = express();
-const PORT = 8080;
+const PORT = 8000;
 const HOST = '0.0.0.0'; // Bind to all network interfaces
 app.listen(PORT, HOST, () => {
   console.log(`Server is running on http://${HOST}:${PORT}`);
