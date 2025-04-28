@@ -1,5 +1,3 @@
-<!-- public/index.html -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,46 +11,33 @@
   />
 </head>
 <body>
-
   <section>
-    <div class="container py-5">
-
+    <div class="container py-5 chat-container">
       <div class="row">
-
         <!-- Left Sidebar: Chat History -->
-        <div class="col-md-4 mb-4 mb-md-0">
-
+        <div class="col-md-3 mb-4 mb-md-0">
           <div class="d-flex justify-content-between align-items-center">
-            <h5 class="font-weight-bold mb-3">Chat History</h5>
+            <h5 class="mb-3">Chat History</h5>
             <button class="btn btn-primary btn-sm" id="newChatBtn">New Chat</button>
           </div>
-
           <div class="card">
             <div class="card-body chat-history">
-
               <ul class="list-unstyled mb-0" id="chat-history-list">
                 <!-- Chat history items will be dynamically added -->
               </ul>
-
             </div>
           </div>
-
         </div>
 
         <!-- Right Main Area: Current Chat -->
-        <div class="col-md-8">
-
+        <div class="col-md-9">
           <div class="card">
             <!-- Chat Title Header -->
             <div class="card-header">
               <h5 class="mb-0" id="chat-title">Select a chat to begin</h5>
             </div>
-            <div class="card-body chat-window">
-
-              <ul class="list-unstyled" id="chat-window">
-                <!-- Chat messages will be dynamically added -->
-              </ul>
-
+            <div class="card-body chat-window" id="chat-window">
+              <!-- Chat messages will be dynamically added -->
             </div>
             <div class="card-footer">
               <div class="input-group">
@@ -61,11 +46,9 @@
               </div>
             </div>
           </div>
-
         </div>
 
       </div>
-
     </div>
   </section>
 

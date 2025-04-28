@@ -1,3 +1,5 @@
+
+
 import express from 'express';
 import path from 'path';
 import bodyParser from 'body-parser';
@@ -5,6 +7,7 @@ import mysql from 'mysql';
 import { JSDOM } from 'jsdom';
 import axios from 'axios';
 import { fileURLToPath } from 'url';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,14 +22,13 @@ const db = mysql.createConnection({
 });
 
 const app = express();
-const PORT = 8000;
-const HOST = '0.0.0.0'; // Bind to all network interfaces
-app.listen(PORT, HOST, () => {
-  console.log(`Server is running on http://${HOST}:${PORT}`);
-});
-
+const PORT = 8080;
 const GNEWS_API_KEY = "bb021a4b1e61649a484c577063faebf1";
 const BASE_URL = "https://gnews.io/api/v4/search";
+
+// Flask API URLs
+const SUMMARIZE_URL = "http://127.0.0.1:5000/summarize";
+const REDUCE_BIAS_URL = "http://127.0.0.1:5000/reduce_bias";
 
 // Middleware
 app.use(express.static(path.join(__dirname, 'public')));
@@ -41,7 +43,7 @@ db.connect(err => {
   console.log('Connected to database');
 });
 
-// Routes
+// Routes 
 app.get('/api/chats', (req, res) => {
   const query = 'SELECT * FROM Chats ORDER BY last_updated DESC';
   db.query(query, (err, results) => {
@@ -82,7 +84,7 @@ app.post('/api/chats/:chatId/messages', (req, res) => {
   });
 });
 
-// Function to fetch articles from GNews API
+// Function to fetch articles from GNews API 
 async function fetchArticles(query) {
   try {
     const params = new URLSearchParams({ q: query, lang: 'en', max: '6', apikey: GNEWS_API_KEY });
@@ -98,7 +100,7 @@ async function fetchArticles(query) {
   }
 }
 
-// Function to extract text from article URL
+// Function to extract text from article URL (optimized)
 async function extractText(url) {
   try {
     const response = await fetch(url);
@@ -107,7 +109,8 @@ async function extractText(url) {
     const paragraphs = dom.window.document.querySelectorAll("p");
     let content = Array.from(paragraphs).map(p => p.textContent.trim()).join(" ");
     content = content.replace(/(e[-]?Edition|newsletter|subscribe|Get Morning Report|Get[\s\S]*?email|Today’s edition).*/gi, "").replace(/\s+/g, ' ').trim();
-    return content.split(' ').length > 50 ? content : null;
+    if (content.length < 100) return null;
+    return content;
   } catch (err) {
     console.error(err);
     return null;
@@ -117,11 +120,7 @@ async function extractText(url) {
 // Function to generate summaries using the Flask app
 async function generateSummary(text, max_length = 200, min_length = 150) {
   try {
-    const response = await axios.post(
-      'http://127.0.0.1:5000/summarize',
-      { text, max_length, min_length },
-      { headers: { 'Content-Type': 'application/json' } }
-    );
+    const response = await axios.post(SUMMARIZE_URL, { text, max_length, min_length }, { headers: { 'Content-Type': 'application/json' } });
     return response.data.summary;
   } catch (err) {
     console.error(err);
@@ -129,14 +128,10 @@ async function generateSummary(text, max_length = 200, min_length = 150) {
   }
 }
 
-// Function to generate neutral summaries
+// Function to generate neutral summaries 
 async function generateNeutralSummary(text) {
   try {
-    const response = await axios.post(
-      'http://127.0.0.1:5000/reduce_bias',
-      { text },
-      { headers: { 'Content-Type': 'application/json' } }
-    );
+    const response = await axios.post(REDUCE_BIAS_URL, { text }, { headers: { 'Content-Type': 'application/json' } });
     const neutralText = response.data.neutral_text;
     return generateSummary(neutralText, 200, 150);
   } catch (err) {
@@ -145,30 +140,25 @@ async function generateNeutralSummary(text) {
   }
 }
 
-// Chatbot endpoint
 app.post('/chat', async (req, res) => {
   const chatId = req.body.chatId;
-  const user_input = req.body.message.trim(); // Ensure leading/trailing spaces are removed
+  const user_input = req.body.message;
 
   if (!user_input) {
-    return res.json({ messages: ["Hello! Please enter a topic."] });
+    return res.json({ message: "Hello! Please enter a topic." });
   }
 
   if (!userState[chatId]) {
     userState[chatId] = {
       stage: 'initial',
       topic: null,
-      summaryType: null,
       articles: [],
-      summaries: [],
       neutralSummaries: [],
-      overallSummary: null,
       neutralOverallSummary: null
     };
   }
 
   const currentState = userState[chatId];
-  let messages = [];
 
   try {
     switch (currentState.stage) {
@@ -186,90 +176,47 @@ app.post('/chat', async (req, res) => {
           }
         }
 
-        currentState.stage = 'displayArticles';
-
-        // Prepare article messages
-        currentState.articles.forEach(article => {
-          const excerpt = article.content.split(' ').slice(0, 100).join(' '); // Adjusted to 100 words for brevity
-          messages.push(`**${article.title}**\n${excerpt}\n---`);
-        });
-
-        messages.push(
-          "Would you like a *generic* summary or an *unbiased* summary?"
-        );
-
-        return res.json({ messages });
-
-      case 'displayArticles':
-        const summaryType = user_input.toLowerCase();
-        if (!['generic', 'unbiased'].includes(summaryType)) {
-          messages.push("Please choose either *generic* or *unbiased*.");
-          return res.json({ messages });
-        }
-
-        currentState.summaryType = summaryType;
         currentState.stage = 'generatingSummaries';
 
-        currentState.summaries = await Promise.all(
-          currentState.articles.map(article =>
-            generateSummary(article.content, 200, 150)
-          )
-        );
+        // No res.json here! Just continue processing
 
-        currentState.overallSummary = await generateSummary(
-          currentState.summaries.join(' '),
-          500,
-          300
-        );
-
-        currentState.neutralSummaries = [];
-        if (summaryType === 'unbiased') {
-          currentState.neutralSummaries = await Promise.all(
-            currentState.articles.map(article =>
-              generateNeutralSummary(article.content)
-            )
-          );
-          currentState.neutralOverallSummary = await generateSummary(
-            currentState.neutralSummaries.join(' '),
-            500,
-            300
-          );
-        }
-
-        currentState.stage = 'displaySummaries';
-
-        // Prepare article summaries
-        currentState.summaries.forEach((summary, index) => {
-          messages.push(`**Article ${index + 1}**\n${summary}\n---`);
+        // Generate neutral summaries for articles (100 words each)
+        const articlePromises = currentState.articles.map(async article => {
+          const neutralSummary = await generateNeutralSummary(article.content, 100, 80);
+          return { title: article.title, summary: neutralSummary };
         });
-        messages.push(`**Overall Summary**\n${currentState.overallSummary}`);
+        const summarizedArticles = await Promise.all(articlePromises);
 
-        if (summaryType === 'unbiased') {
-          currentState.neutralSummaries.forEach((summary, index) => {
-            messages.push(
-              `**Unbiased Article ${index + 1}**\n${summary}\n---`
-            );
-          });
-          messages.push(
-            `**Unbiased Overall Summary**\n${currentState.neutralOverallSummary}`
-          );
-        }
+        // Generate overall summary (200 words)
+        const combinedContent = currentState.articles.map(article => article.content).join(' ');
+        const neutralOverallSummary = await generateNeutralSummary(combinedContent, 200, 150);
 
-        return res.json({ messages });
+        // Prepare final response message
+        let summaryMessage = '\n\n**Unbiased Article Summaries:**\n\n';
+        summarizedArticles.forEach((item, index) => {
+          summaryMessage += `**Article ${index + 1}: ${item.title}**\n${item.summary}\n\n`;
+        });
+        summaryMessage += `\n**Overall Summary:**\n${neutralOverallSummary}`;
+
+        // Now send final response
+        return res.json({ message: summaryMessage });
 
       default:
-        messages.push("Conversation completed. Please start a new chat.");
-        return res.json({ messages });
+        return res.json({ message: "Conversation completed. Please start a new chat." });
     }
   } catch (err) {
     console.error(err);
-    messages = ["An error occurred while processing your request."];
-    return res.json({ messages });
+    return res.status(500).json({ message: "An error occurred while processing your request." });
   }
 });
 
-// Fallback to serve index.html
+
+// Fallback to serve index.html 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// Start the server (unchanged)
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
+});

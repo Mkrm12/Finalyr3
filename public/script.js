@@ -1,4 +1,22 @@
 let currentChatId = null;
+let isProcessing = false; // Flag to track if processing is in progress
+
+// Function to show loading message
+function showLoading(chatId, message) {
+  if (!currentChatId) return;
+
+  // Add loading message to UI
+  addMessage('bot', message);
+  
+  fetch(`/api/chats/${chatId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sender: 'bot', content: message }),
+  })
+    .then(() => loadChatMessages(chatId))
+    .catch(err => {
+    });
+}
 
 // Fetch and display chat histories
 function loadChatHistories() {
@@ -36,7 +54,6 @@ function loadChatHistories() {
       });
     })
     .catch(err => {
-      console.error('Error fetching chat history:', err);
     });
 }
 
@@ -49,25 +66,35 @@ function loadChatMessages(chatId) {
       chatWindow.innerHTML = '';
 
       messages.forEach(message => {
-        const li = document.createElement('li');
-        li.classList.add('d-flex', 'chat-message', message.sender === 'user' ? 'justify-content-end' : 'justify-content-start');
-
-        li.innerHTML = `
-          <div class="message-content">
-            <p class="small mb-1 text-muted">${new Date(message.timestamp).toLocaleTimeString()}</p>
-            <p class="mb-0">${message.content}</p>
-          </div>
-        `;
-
-        chatWindow.appendChild(li);
+        addMessage(message.sender, message.content, message.sender === 'bot');
       });
 
-      // Scroll to the bottom
       chatWindow.scrollTop = chatWindow.scrollHeight;
     })
     .catch(err => {
-      console.error('Error fetching messages:', err);
     });
+}
+
+// Function to add formatted message to chat window
+function addMessage(sender, content, isBotResponse = false) {
+  const messageDiv = document.createElement("div");
+  messageDiv.classList.add("chat-message");
+  messageDiv.classList.add(sender === "user" ? "bg-user" : "bg-bot");
+  
+  if (isBotResponse) {
+    messageDiv.classList.add("markdown");
+    content = content.replace(/\n/g, "<br>");
+  }
+
+  messageDiv.innerHTML = `
+    <div class="message-timestamp small text-muted mb-1">
+      ${new Date().toLocaleTimeString()}
+    <div class="message-content">
+      ${content}
+    </div>
+  `;
+
+  document.getElementById('chat-window').appendChild(messageDiv);
 }
 
 // Handle sending messages
@@ -76,97 +103,98 @@ const messageInput = document.getElementById('messageInput');
 
 sendButton.addEventListener('click', () => {
   const messageText = messageInput.value.trim();
-  if (messageText !== '' && currentChatId !== null) {
+  if (messageText !== '' && currentChatId !== null && !isProcessing) {
+    isProcessing = true; // Set processing flag
+
+    // Add user's message to UI
+    addMessage('user', messageText);
+    messageInput.value = '';
+
+    // Send user's message to API
     fetch(`/api/chats/${currentChatId}/messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sender: 'user', content: messageText })
+      body: JSON.stringify({ sender: 'user', content: messageText }),
     })
-      .then(response => response.json())
       .then(() => {
-        messageInput.value = '';
-        loadChatMessages(currentChatId);
+        // Show loading message
+        addMessage('bot', "Processing your request...");
 
-        fetch('/chat', {
+        // Simulate bot response
+        return fetch('/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chatId: currentChatId, message: messageText })
+          body: JSON.stringify({ message: messageText, chatId: currentChatId })
+        });
+      })
+      .then(response => response.json())
+      .then((data) => {
+        // Replace loading message with actual bot response
+        const botMessage = data.message;
+        addMessage('bot', botMessage, true);
+
+        // Save bot message to API
+        fetch(`/api/chats/${currentChatId}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sender: 'bot', content: botMessage }),
         })
-          .then(response => response.json())
-          .then(data => {
-            if (data.messages) {
-              data.messages.forEach(botMessage => {
-                fetch(`/api/chats/${currentChatId}/messages`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    sender: 'bot',
-                    content: botMessage
-                  })
-                })
-                  .then(() => loadChatMessages(currentChatId))
-                  .catch(err => {
-                    console.error(err);
-                  });
-              });
-            }
+          .then(() => {
+            isProcessing = false; // Reset processing flag
+            loadChatMessages(currentChatId);
           })
           .catch(err => {
-            console.error(err);
+            isProcessing = false; // Reset processing flag on error
           });
       })
       .catch(err => {
-        console.error(err);
+        isProcessing = false; // Reset processing flag on error
       });
   }
 });
 
-// Handle starting a new chat
+// Handle starting a new chat  
 const newChatBtn = document.getElementById('newChatBtn');
 
 newChatBtn.addEventListener('click', () => {
   const chatTitle = prompt('Enter a title for the new chat:');
-  if (chatTitle === null) return;
-
-  fetch('/api/chats', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title: chatTitle }),
-  })
-    .then(response => response.json())
-    .then(chat => {
-      currentChatId = chat.id;
-      document.getElementById('chat-title').textContent = chat.title;
-      loadChatHistories();
-      document.getElementById('chat-window').innerHTML = '';
-
-      // Automatically send an initial message to get the welcome message from the bot
-      fetch('/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId: currentChatId, message: '' }),
-      })
-        .then(response => response.json())
-        .then(data => {
-          data.messages.forEach(botMessage => {
-            fetch(`/api/chats/${currentChatId}/messages`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sender: 'bot', content: botMessage }),
-            })
-              .then(() => loadChatMessages(currentChatId))
-              .catch(err => {
-                console.error('Error sending bot message:', err);
-              });
-          });
-        })
-        .catch(err => {
-          console.error('Error fetching bot response:', err);
-        });
+  if (chatTitle) {
+    fetch('/api/chats', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: chatTitle }),
     })
-    .catch(err => {
-      console.error('Error creating new chat:', err);
-    });
+      .then(response => response.json())
+      .then((chat) => {
+        currentChatId = chat.id;
+        document.getElementById('chat-title').textContent = chat.title;
+        loadChatHistories();
+        document.getElementById('chat-window').innerHTML = '';
+
+        // Automatically send an initial (welcome) message
+        return fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: "", chatId: chat.id })
+        });
+      })
+      .then(response => response.json())
+      .then((data) => {
+        const botMessage = data.message;
+        addMessage('bot', botMessage, true);
+        
+        fetch(`/api/chats/${currentChatId}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sender: 'bot', content: botMessage }),
+        })
+          .then(() => loadChatMessages(currentChatId))
+          .catch(err => {
+          });
+      })
+      .catch(err => {
+      });
+  }
 });
 
 // Initial load
