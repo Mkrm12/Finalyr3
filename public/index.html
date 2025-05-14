@@ -5,10 +5,7 @@
   <title>Chat Interface</title>
   <link rel="stylesheet" href="styles.css">
   <!-- Bootstrap CSS -->
-  <link
-    rel="stylesheet"
-    href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css"
-  />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css" />
 </head>
 <body>
   <section>
@@ -31,14 +28,24 @@
 
         <!-- Right Main Area: Current Chat -->
         <div class="col-md-9">
-          <div class="card">
+          <div class="card d-flex flex-column" style="height: 80vh;">
             <!-- Chat Title Header -->
             <div class="card-header">
               <h5 class="mb-0" id="chat-title">Select a chat to begin</h5>
             </div>
-            <div class="card-body chat-window" id="chat-window">
+
+            <!-- Chat Messages -->
+            <div class="card-body chat-window flex-grow-1 overflow-auto" id="chat-window">
               <!-- Chat messages will be dynamically added -->
             </div>
+
+            <!-- TTS Footer Controls -->
+            <div class="card-footer d-flex overflow-auto" id="tts-footer" style="gap: .5rem; display: none;">
+              <button id="ttsButton" class="btn btn-info flex-shrink-0">🔊 Listen to Overall Summary</button>
+              <button id="stopButton" class="btn btn-outline-danger flex-shrink-0">⏹ Stop</button>
+            </div>
+
+            <!-- Typing Bar -->
             <div class="card-footer">
               <div class="input-group">
                 <textarea class="form-control" id="messageInput" rows="2" placeholder="Type your message"></textarea>
