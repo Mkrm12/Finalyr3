@@ -15,7 +15,7 @@ let ttsUtterance = null;
 
 // TTS configuration (change these to pick voice & speed)
 const TTS_VOICE = 'Google UK English Male';  // e.g. 'Google US English'
-const TTS_RATE  = 1.5;                       // 0.1 (slow) to 10 (fast)
+const TTS_RATE  = 1.0;                       // 0.1 (slow) to 10 (fast)
 
 /**
  * Append a message to the chat window
