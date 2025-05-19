@@ -18,43 +18,41 @@ const db = mysql.createConnection({
 });
 
 const app = express();
-const PORT = 8000;
+const PORT = 8080;
 
 // Your API keys
-const GNEWS_API_KEY    = "bb021a4b1e61649a484c577063faebf1";
-const BASE_URL         = "https://gnews.io/api/v4/search";
-const NEWSAPI_KEY      = "rhNuLNJxtMvLQ51twMz4alZVL5smy5F6eFrEd79r";
-const NEWSAPI_BASE_URL = "https://api.thenewsapi.com/v1/news/all";
+const GNEWS_API_KEY   = "bb021a4b1e61649a484c577063faebf1";
+const BASE_URL        = "https://gnews.io/api/v4/search";
+const NEWSAPI_KEY     = "rhNuLNJxtMvLQ51twMz4alZVL5smy5F6eFrEd79r";
+const NEWSAPI_BASE_URL= "https://api.thenewsapi.com/v1/news/all";
 
-// Updated Flask endpoints (now using your local Flask server on port 5000)
-const SUMMARIZE_URL    = "http://localhost:5000/summarize";
-const REDUCE_BIAS_URL  = "http://localhost:5000/reduce_bias";
+// Flask endpoints
+const SUMMARIZE_URL   = "http://127.0.0.1:5000/summarize";
+const REDUCE_BIAS_URL = "http://127.0.0.1:5000/reduce_bias";
 
-// Serve static files under the base path /usr/781
-app.use('/usr/781', express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(bodyParser.json());
 
-// Connect to the database
 db.connect(err => {
   if (err) console.error("DB connection error:", err);
 });
 
-// --- Chat & Message routes ---
-app.get('/usr/781/api/chats', (req, res) => {
+// --- Chat & Message routes (unchanged) ---
+app.get('/api/chats', (req, res) => {
   db.query('SELECT * FROM Chats ORDER BY last_updated DESC', (err, results) => {
     if (err) return res.status(500).end();
     res.json(results);
   });
 });
 
-app.post('/usr/781/api/chats', (req, res) => {
+app.post('/api/chats', (req, res) => {
   db.query('INSERT INTO Chats (title) VALUES (?)', [req.body.title], (err, result) => {
     if (err) return res.status(500).end();
     res.json({ id: result.insertId, title: req.body.title });
   });
 });
 
-app.get('/usr/781/api/chats/:chatId/messages', (req, res) => {
+app.get('/api/chats/:chatId/messages', (req, res) => {
   db.query('SELECT * FROM Messages WHERE chat_id = ? ORDER BY timestamp ASC',
     [req.params.chatId], (err, results) => {
       if (err) return res.status(500).end();
@@ -62,7 +60,7 @@ app.get('/usr/781/api/chats/:chatId/messages', (req, res) => {
   });
 });
 
-app.post('/usr/781/api/chats/:chatId/messages', (req, res) => {
+app.post('/api/chats/:chatId/messages', (req, res) => {
   const { sender, content } = req.body;
   db.query('INSERT INTO Messages (chat_id, sender, content) VALUES (?, ?, ?)',
     [req.params.chatId, sender, content], (err, result) => {
@@ -114,8 +112,8 @@ async function fetchArticles(query) {
 async function extractText(url) {
   try {
     const resp = await axios.get(url);
-    const dom = new JSDOM(resp.data);
-    const doc = dom.window.document;
+    const dom  = new JSDOM(resp.data);
+    const doc  = dom.window.document;
     // Strip common noise
     ['script','style','nav','footer','aside','.ads','.newsletter','.subscribe','.promo']
       .forEach(sel => doc.querySelectorAll(sel).forEach(el => el.remove()));
@@ -131,15 +129,15 @@ async function extractText(url) {
   }
 }
 
-// 4) Summarize via Flask
-async function generateSummary(text, max_length = 200, min_length = 150) {
+// 4) Summarize via Flask (kept for compatibility)
+async function generateSummary(text, max_length=200, min_length=150) {
   if (!text || text.length < 20) {
     return "Summary unavailable due to limited content.";
   }
   try {
     const resp = await axios.post(SUMMARIZE_URL,
       { text, max_length, min_length },
-      { headers: { 'Content-Type': 'application/json' } }
+      { headers: { 'Content-Type':'application/json' } }
     );
     return resp.data.summary || 'Error generating summary';
   } catch (err) {
@@ -148,15 +146,15 @@ async function generateSummary(text, max_length = 200, min_length = 150) {
   }
 }
 
-// 5) Neutralize bias via Flask
-async function generateNeutralSummary(text, max_length = 200, min_length = 150) {
+// 5) Neutralize bias via Flask (kept for compatibility)
+async function generateNeutralSummary(text, max_length=200, min_length=150) {
   if (!text || text.length < 20) {
     return "Summary unavailable due to limited content.";
   }
   try {
     const resp = await axios.post(REDUCE_BIAS_URL,
       { text },
-      { headers: { 'Content-Type': 'application/json' } }
+      { headers: { 'Content-Type':'application/json' } }
     );
     const neutralText = resp.data.neutral_text;
     return generateSummary(neutralText, max_length, min_length);
@@ -167,7 +165,7 @@ async function generateNeutralSummary(text, max_length = 200, min_length = 150) 
 }
 
 // --- Main chat endpoint with background processing, simulated progress, and typing ---
-app.post('/usr/781/chat', async (req, res) => {
+app.post('/chat', async (req, res) => {
   // Set content type to plain text so we can output our formatted text.
   res.setHeader('Content-Type', 'text/plain');
 
@@ -183,7 +181,7 @@ app.post('/usr/781/chat', async (req, res) => {
   }
   const state = app.locals.userState[chatId];
 
-  // Helper function for delays.
+  // Helper functions for delay and typing at 110ms per word.
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
@@ -220,20 +218,19 @@ app.post('/usr/781/chat', async (req, res) => {
     state.topic = user_input;
     state.stage = 'processing';
 
-    // Simulated progress: "Fetching articles..."
+    // Simulated progress messages with ticks on the same line.
     await typeTextProgress("Fetching articles... ");
-    await sleep(7000); // simulate 7 seconds delay
+    await sleep(7000); // 7 seconds
     res.write("✓\n");
 
     const articles = await articlesPromise; // Wait for articles
 
-    // Simulated progress: "Reducing bias..."
     await typeTextProgress("Reducing bias... ");
-    await sleep(10000); // simulate 10 seconds delay
+    await sleep(10000); // 10 seconds
     res.write("✓\n");
 
-    // Progress: "Generating summaries..."
     await typeTextProgress("Generating summaries... ");
+    // Summarization happens as part of the next step
 
     if (articles.length === 0) {
       await typeTextProgress("No articles found. Please try a different topic.\n");
@@ -258,21 +255,21 @@ app.post('/usr/781/chat', async (req, res) => {
       });
       return summaryText;
     });
-    // Wait for all article summaries.
+    // Wait for all article summaries to finish.
     const articleSummaries = await Promise.all(summaryPromises);
-    res.write("✓\n\n"); // Tick and new lines
+    res.write("✓\n\n"); // Add tick and new lines after summaries are done
 
-    // Type out the final output.
+    // Now type out the final output.
     await typeTextFinal("**Unbiased Article Summaries:**\n\n");
     for (let i = 0; i < articles.length; i++) {
       await typeTextFinal(`**Article ${i + 1}: ${articles[i].title}**\n`);
       await typeTextFinal(articleSummaries[i] + "\n\n");
     }
 
-    // Generate an overall summary.
+    // Generate an overall summary based on the individual article summaries.
     await typeTextFinal("**Overall Summary:**\n");
     const combinedSummaries = articleSummaries.join(' ');
-    // Send the rewrite flag to instruct the endpoint to rephrase.
+    // Send the rewrite flag to instruct the Flask endpoint to generate a rephrased summary.
     const overallPayload = { text: combinedSummaries, max_length: 200, min_length: 150, rewrite: true };
     const overallResp = await axios.post(SUMMARIZE_URL, overallPayload, { responseType: 'stream' });
     let overallSummary = "";
@@ -285,7 +282,7 @@ app.post('/usr/781/chat', async (req, res) => {
     });
     await typeTextFinal(overallSummary);
 
-    // Persist the overall summary in the database.
+    // *** Modification: Persist the overall summary in the database ***
     db.query('UPDATE Chats SET overall_summary = ? WHERE id = ?', [overallSummary, chatId], (err) => {
       if (err) console.error("Error updating overall summary:", err);
     });
@@ -299,6 +296,11 @@ app.post('/usr/781/chat', async (req, res) => {
   }
 });
 
+// Fallback to static UI.
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
+  console.error(`Server listening on port ${PORT}`);
 });
