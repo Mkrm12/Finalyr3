@@ -11,8 +11,7 @@ nltk.download('vader_lexicon')
 nltk.download('punkt')
 nltk.download('wordnet')
 
-from nltk.corpus import wordnet
-wordnet.ensure_loaded()           
+wordnet.ensure_loaded()            
 
 app = Flask(__name__)
 
@@ -30,13 +29,11 @@ def summarize():
         text = data['text']
         max_length = data.get('max_length', 200)
         min_length = data.get('min_length', 150)
-        # If the rewrite flag is provided, prepend an explicit rewrite instruction.
+
         if data.get("rewrite", False):
             text = "Rewrite the following text in your own concise words and summarize it: " + text
 
-        # Text preprocessing: remove extra whitespace.
         text = re.sub(r'\s+', ' ', text).strip()
-
         inputs = tokenizer([text], max_length=512, return_tensors="pt", truncation=True)
         summary_ids = model.generate(
             inputs["input_ids"],
@@ -50,7 +47,7 @@ def summarize():
         full_summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True).strip()
 
         def generate_chunks():
-            chunk_size = 50  # Adjust as needed for streaming granularity.
+            chunk_size = 50  
             for i in range(0, len(full_summary), chunk_size):
                 yield full_summary[i:i+chunk_size]
         return Response(stream_with_context(generate_chunks()), mimetype='text/plain')
@@ -65,12 +62,11 @@ def reduce_bias():
         data = request.get_json()
         text = data['text']
 
-        # Split text into sentences for better context.
         sentences = re.split(r'(?<=[.^!?])\s*', text)
         neutral_sentences = []
         for sentence in sentences:
             sentence_score = vader_analyzer.polarity_scores(sentence)
-            if abs(sentence_score['compound']) > 0.3:  # Adjust threshold as needed.
+            if abs(sentence_score['compound']) > 0.3:  
                 words = word_tokenize(sentence)
                 neutralized = []
                 for word in words:
@@ -95,6 +91,27 @@ def reduce_bias():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/chat', methods=['POST'])
+def chat():
+    try:
+        data = request.get_json()
+        text = data.get('message', '')
+
+        if not text:
+            return jsonify({"error": "No topic provided."}), 400
+
+        # Step 1: Reduce bias
+        bias_response = reduce_bias()
+        bias_data = bias_response.get_json()
+        neutral_text = bias_data.get("neutral_text", text)
+
+        # Step 2: Summarize unbiased text
+        summary_response = summarize()
+        summary_text = summary_response.get_data(as_text=True)
+
+        return jsonify({"summary": summary_text})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
-

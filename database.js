@@ -4,6 +4,7 @@ import mysql from 'mysql';
 const db = mysql.createConnection({
     host: '127.0.0.1',
     user: 'root',
+    password: 'root123',
     database: 'Chatbot5',
     port: 3306,
 });
