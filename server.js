@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import bodyParser from 'body-parser';
@@ -10,20 +11,20 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const db = mysql.createConnection({
-  host: '127.0.0.1',
-  user: 'root',
-  password: 'root123',
-  database: 'Chatbot5',
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
   port: 3306,
 });
 
 const app = express();
 const PORT = 8080;
 
-// Your API keys
-const GNEWS_API_KEY   = "bb021a4b1e61649a484c577063faebf1";
+// Your API keys are now hidden!
+const GNEWS_API_KEY   = process.env.GNEWS_API_KEY;
 const BASE_URL        = "https://gnews.io/api/v4/search";
-const NEWSAPI_KEY     = "rhNuLNJxtMvLQ51twMz4alZVL5smy5F6eFrEd79r";
+const NEWSAPI_KEY     = process.env.NEWSAPI_KEY;
 const NEWSAPI_BASE_URL= "https://api.thenewsapi.com/v1/news/all";
 
 // Flask endpoints
